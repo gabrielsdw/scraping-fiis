@@ -65,10 +65,95 @@ class ScraperFii(Scraper):
             data_equity_value = self.get_data_equity_value(response)
             data_content_info = self.get_data_content_info(response)
             data_indicators = self.get_data_indicators(response)
+            data_comunications = self.get_data_comunications(response)
+            data_notices = self.get_data_notices(response)
+            data_properties = self.get_data_properties(response)
+            data_dividends = self.get_data_dividends(response)
+            
             print(data_equity_value)
             print(data_content_info)
             print(data_cards_ticker)
             print(data_indicators)
+            print(data_comunications)
+            print(data_notices)
+            print(data_properties)
+            print(data_dividends)
+
+
+    @safe_execute
+    def get_data_dividends(self, response):
+        table = response.find('table', attrs={'id': 'table-dividends-history'})
+        
+        titles = table.find('thead')
+        titles = [
+            self.clean_string(str(title.text))
+            for title in titles.find_all('th')
+        ]
+
+        dividends_values = table.find('tbody')
+        dividends_values = dividends_values.find_all('tr')
+        dividends_values = [value.find_all() for value in dividends_values]
+        
+        data_dividends = []
+        for dividend in dividends_values:
+            item = {}
+            for data, title in list(zip(dividend, titles)):
+                item[title] = self.string_to_number(str(data.text))
+            data_dividends.append(item)
+        return data_dividends
+        
+
+
+    @safe_execute
+    def get_data_properties(self, response):
+        response = response.find('div', attrs={'id': 'properties-section'})
+        
+        table = response.find('table', attrs={'id': 'properties-index-table'})
+ 
+        states = [
+            self.clean_string(str(state.text))
+            for state in table.find_all('td', attrs={'nowrap': 'nowrap'})
+        ]
+        properties_quantities = [
+            self.string_to_number(str(prop.text))
+            for prop in table.find_all('span', attrs={'class': 'count'})
+        ]      
+        quantity_property_per_state = self.to_dict(states, properties_quantities)
+
+        properties = response.find_all('div', attrs={'class': 'card-propertie'})
+        properties = [prop.find('div') for prop in properties]
+        properties = [prop.find_all() for prop in properties]
+        
+        data_properties = []
+        for prop in properties:
+            data_properties.append(
+                {
+                    'property_name': self.clean_string(str(prop[0].text)),
+                    'property_state': self.clean_string(str(prop[1].text).split(':')[-1]),
+                    'property_area': self.string_to_number(str(prop[3].text).split(':')[-1])
+                }
+            )
+        result = {
+            'data_properties': data_properties,
+            'quantity_properties_per_state': quantity_property_per_state,
+        }
+        return result
+
+
+    @safe_execute
+    def get_data_notices(self, response):
+        response = response.find('div', attrs={'class': 'news-main'})
+        links = [link.get('href') for link in response.find_all('a')]
+        titles = [title.text for title in response.find_all('h3', attrs={'class': 'title'})]
+        data = [{'title': k, 'link': v} for k, v in list(zip(titles, links))]
+        return data
+
+
+    @safe_execute
+    def get_data_comunications(self, response):
+        table = response.find('table', attrs={'id': 'table-comunication'})
+        links = [link.get('href') for link in table.find_all('a')]
+        return links
 
 
     @safe_execute
@@ -122,6 +207,7 @@ class ScraperFii(Scraper):
         ]
         result = self.to_dict(titles, values)
         return result    
+
 
     @safe_execute
     def get_data_cards_ticker(self, response):
